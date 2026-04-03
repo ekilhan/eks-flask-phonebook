@@ -92,8 +92,8 @@ eks-flask-phonebook/
 ├── phonebook/
 │   ├── Dockerfile
 │   ├── docker-compose.yaml
-│   ├── phonebook-app.py                     # prometheus_flask_exporter entegre
-│   ├── requirements.txt                     # prometheus_flask_exporter dahil
+│   ├── phonebook-app.py                     # prometheus_flask_exporter integrated
+│   ├── requirements.txt                     # includes prometheus_flask_exporter
 │   ├── init.sql
 │   └── templates/
 │       └── index.html
