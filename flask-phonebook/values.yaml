@@ -1,0 +1,20 @@
+flask:
+  image: "<YOUR_AWS_ACCOUNT_ID>.dkr.ecr.<YOUR_REGION>.amazonaws.com/flask-phonebook:latest"
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 80
+
+mysql:
+  image: "mysql:8"
+  rootPassword: "<YOUR_ROOT_PASSWORD>"
+  userPassword: "<YOUR_USER_PASSWORD>"
+  database: "phonebook_db"
+  user: "admin"
+  mysqlHost: "mysql"
+  port: "3306"
+
+ingress:
+  enabled: true
+  host: phonebook.<YOUR_DOMAIN>
+  certificateArn: arn:aws:acm:<YOUR_REGION>:<YOUR_AWS_ACCOUNT_ID>:certificate/<YOUR_CERT_ID>
