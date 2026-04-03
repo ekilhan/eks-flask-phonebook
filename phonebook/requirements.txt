@@ -1,4 +1,5 @@
 flask==2.3.3
 flask-mysql
 cryptography
+prometheus_flask_exporter
 

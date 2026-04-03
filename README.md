@@ -5,8 +5,10 @@
 ![Helm](https://img.shields.io/badge/Helm-3-blue?logo=helm)
 ![Flask](https://img.shields.io/badge/Flask-Python-green?logo=flask)
 ![MySQL](https://img.shields.io/badge/MySQL-8-blue?logo=mysql)
+![Prometheus](https://img.shields.io/badge/Prometheus-monitoring-red?logo=prometheus)
+![Grafana](https://img.shields.io/badge/Grafana-dashboard-orange?logo=grafana)
 
-A production-ready deployment of a Flask + MySQL phonebook application on Amazon EKS, using Helm, AWS LoadBalancer Controller, Route53, and ACM for HTTPS support.
+A production-ready deployment of a Flask + MySQL phonebook application on Amazon EKS, using Helm, AWS LoadBalancer Controller, Route53, and ACM for HTTPS support. Includes full cluster monitoring with Prometheus and Grafana.
 
 ---
 
@@ -14,7 +16,13 @@ A production-ready deployment of a Flask + MySQL phonebook application on Amazon
 
 ![App Screenshot](docs/app-screenshot.png)
 
-> Live at: `https://phonebook.kenanilhan.com`
+---
+
+## 📊 Monitoring
+
+| Grafana | Prometheus |
+|---|---|
+| ![Grafana](docs/grafana-screenshot.png) | ![Prometheus](docs/prometheus-screenshot.png) |
 
 ---
 
@@ -29,7 +37,6 @@ A production-ready deployment of a Flask + MySQL phonebook application on Amazon
 - [Overview](#overview)
 - [Technologies Used](#technologies-used)
 - [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
 - [Estimated Cost](#estimated-cost)
 - [Getting Started](#getting-started)
   - [1. Setup Management Machine](#1-setup-management-machine)
@@ -38,8 +45,10 @@ A production-ready deployment of a Flask + MySQL phonebook application on Amazon
   - [4. Push Image to ECR](#4-push-image-to-ecr)
   - [5. Deploy with Helm](#5-deploy-with-helm)
   - [6. Configure Domain & HTTPS](#6-configure-domain--https)
-- [Monitoring](#monitoring)
+  - [7. Monitoring Setup](#7-monitoring-setup)
+- [ALB IngressGroup Behavior](#alb-ingressgroup-behavior)
 - [Cleanup](#cleanup)
+- [Notes](#notes)
 
 ---
 
@@ -52,6 +61,8 @@ This project demonstrates how to:
 - Route external traffic using **AWS ALB Ingress Controller**
 - Secure the application with **HTTPS via ACM**
 - Manage DNS with **Route53**
+- Monitor the cluster with **Prometheus + Grafana**
+- Share a single ALB across multiple services using **IngressGroup**
 
 ---
 
@@ -67,6 +78,8 @@ This project demonstrates how to:
 | Amazon ECR | Container image registry |
 | Route53 | DNS management |
 | ACM | Free SSL/TLS certificates |
+| Prometheus | Metrics collection |
+| Grafana | Metrics visualization |
 
 ---
 
@@ -79,8 +92,8 @@ eks-flask-phonebook/
 ├── phonebook/
 │   ├── Dockerfile
 │   ├── docker-compose.yaml
-│   ├── phonebook-app.py
-│   ├── requirements.txt
+│   ├── phonebook-app.py                     # prometheus_flask_exporter entegre
+│   ├── requirements.txt                     # prometheus_flask_exporter dahil
 │   ├── init.sql
 │   └── templates/
 │       └── index.html
@@ -91,23 +104,19 @@ eks-flask-phonebook/
 │   │   ├── flask-service.yaml
 │   │   ├── mysql-deployment.yaml
 │   │   ├── mysql-service.yaml
-│   │   └── ingress.yaml
+│   │   └── ingress.yaml                     # group.name: eks-apps
 │   ├── Chart.yaml
 │   └── values.yaml
+├── monitoring/
+│   ├── grafana-ingress.yaml
+│   └── prometheus-ingress.yaml
 ├── docs/
 │   ├── phonebook_infrastructure.png
-│   └── app-screenshot.png
+│   ├── app-screenshot.png
+│   ├── grafana-screenshot.png
+│   └── prometheus-screenshot.png
 └── README.md
 ```
-
----
-
-## Prerequisites
-
-- An AWS account (use IAM user, not root)
-- Basic knowledge of AWS Console
-- Basic Docker knowledge
-- Linux command line familiarity
 
 ---
 
@@ -195,7 +204,6 @@ aws iam create-policy \
   --policy-name AWSLoadBalancerControllerIAMPolicy \
   --policy-document file://iam_policy.json
 
-# Create IAM Service Account
 # Replace <YOUR_AWS_ACCOUNT_ID> with your actual account ID
 eksctl create iamserviceaccount \
   --cluster cc-cluster \
@@ -220,6 +228,16 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
 ---
 
 ### 4. Push Image to ECR
+
+Flask uygulaması Prometheus metriklerini `/metrics` endpoint'i üzerinden sunar.
+`requirements.txt` içinde `prometheus_flask_exporter` bulunmalı, `phonebook-app.py` içinde ise:
+
+```python
+from prometheus_flask_exporter import PrometheusMetrics
+metrics = PrometheusMetrics(app)  # app = Flask(__name__) dan hemen sonra
+```
+
+Image build ve push:
 
 ```bash
 # Replace <YOUR_AWS_ACCOUNT_ID> with your actual account ID
@@ -280,49 +298,96 @@ helm upgrade phonebook .
 
 1. Go to **Route53 → Hosted Zone → Create Record**
 2. Record type: **A**
-3. Record name: `phonebook` (or your chosen subdomain)
+3. Record name: `phonebook`
 4. Enable **Alias** → Route traffic to **Application Load Balancer**
 5. Select your region and the ALB created by Ingress
 6. Click **Create records**
 
-Make sure your ACM certificate is validated before this step.
+---
 
-Test by visiting: `https://phonebook.<YOUR_DOMAIN>`
+### 7. Monitoring Setup
+
+Prometheus and Grafana are deployed using the `kube-prometheus-stack` Helm chart and share the same ALB as the phonebook app via `alb.ingress.kubernetes.io/group.name: eks-apps`.
+
+#### Install kube-prometheus-stack
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+kubectl create namespace monitoring
+
+helm install monitoring prometheus-community/kube-prometheus-stack \
+  -n monitoring \
+  --set grafana.adminPassword="<YOUR_GRAFANA_PASSWORD>"
+```
+
+Verify pods are running:
+```bash
+kubectl get pods -n monitoring
+```
+
+#### Apply Ingress resources
+
+Update `<YOUR_WILDCARD_CERTIFICATE_ARN>` in both files, then:
+
+```bash
+kubectl apply -f ~/monitoring/grafana-ingress.yaml
+kubectl apply -f ~/monitoring/prometheus-ingress.yaml
+```
+
+#### Add Route53 records
+
+Add A records for:
+- `grafana.<YOUR_DOMAIN>` → ALB
+- `prometheus.<YOUR_DOMAIN>` → ALB
+
+#### Access
+
+| Service | URL | Credentials |
+|---|---|---|
+| Grafana | `https://grafana.<YOUR_DOMAIN>` | admin / your password |
+| Prometheus | `https://prometheus.<YOUR_DOMAIN>` | — |
 
 ---
 
-## 📊 Monitoring (Coming Soon)
+## ⚠️ ALB IngressGroup Behavior
 
-Prometheus + Grafana stack will be added to this project.
+By default, each Ingress creates its own ALB. By setting the same `group.name` annotation across multiple Ingress resources, they all share a single ALB:
 
-Planned metrics:
-- Pod CPU / Memory usage
-- HTTP request duration
-- MySQL connection stats
+```yaml
+alb.ingress.kubernetes.io/group.name: eks-apps
+```
 
-> Branch: `feature/monitoring`
+This project uses `eks-apps` as the group name for phonebook, Grafana, and Prometheus.
+
+> **Important:** When adding `group.name` to an existing Ingress for the first time and running `helm upgrade`, the old ALB is automatically deleted and a new shared ALB is created. Make sure to update your Route53 records immediately after to avoid downtime.
 
 ---
 
 ## Cleanup
 
-Run these steps in order to avoid ongoing charges:
-
 ```bash
-# 1. Remove Helm release (deletes all Kubernetes resources including ALB)
+# 1. Remove monitoring
+kubectl delete -f ~/monitoring/grafana-ingress.yaml
+kubectl delete -f ~/monitoring/prometheus-ingress.yaml
+helm uninstall monitoring -n monitoring
+kubectl delete namespace monitoring
+
+# 2. Remove phonebook
 helm uninstall phonebook
 
-# 2. Delete EKS cluster (also removes VPC, subnets, security groups)
+# 3. Delete EKS cluster
 eksctl delete cluster --region=us-east-1 --name=cc-cluster
 
-# 3. Delete ECR repository
+# 4. Delete ECR repository
 aws ecr delete-repository --repository-name flask-phonebook --region us-east-1 --force
 ```
 
 Then manually:
-- Delete the **Route53 A record**
-- Delete the **IAM Role**: `AmazonEKSLoadBalancerControllerRole`
-- Delete the **CloudFormation stack**: `eks-management-machine`
+- Delete **Route53 records** (phonebook, grafana, prometheus)
+- Delete **IAM Role**: `AmazonEKSLoadBalancerControllerRole`
+- Delete **CloudFormation stack**: `eks-management-machine`
 
 ---
 
@@ -331,9 +396,3 @@ Then manually:
 - Never commit `.pem` files or secrets to GitHub
 - Store sensitive values (passwords, ARNs, account IDs) outside of version control
 - This project is for learning purposes; for production use, consider using AWS Secrets Manager
-
----
-
-## 📄 License
-
-MIT

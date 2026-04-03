@@ -2,9 +2,11 @@
 # As we know, we are gonna import necessary libraries. We've also imported 
 from flask import Flask, request, render_template
 from flaskext.mysql import MySQL
+from prometheus_flask_exporter import PrometheusMetrics
 import os
 # Create an object named app
 app = Flask(__name__)
+metrics = PrometheusMetrics(app)
 
 # Configure mysql database
 
