@@ -1,26 +1,25 @@
-{{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: flask-ingress
+  name: prometheus-ingress
+  namespace: monitoring
   annotations:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/group.name: eks-apps
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}, {"HTTP":80}]'
     alb.ingress.kubernetes.io/ssl-redirect: '443'
-    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.certificateArn }}
+    alb.ingress.kubernetes.io/certificate-arn: <YOUR_WILDCARD_CERTIFICATE_ARN>
     alb.ingress.kubernetes.io/target-type: ip
 spec:
   rules:
-    - host: {{ .Values.ingress.host }}
+    - host: prometheus.kenanilhan.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: flask-service
+                name: monitoring-kube-prometheus-prometheus
                 port:
-                  number: 80
-{{- end }}
+                  number: 9090
