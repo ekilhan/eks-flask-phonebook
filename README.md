@@ -14,7 +14,7 @@ A production-ready deployment of a Flask + MySQL phonebook application on Amazon
 
 ## 📸 Application
 
-![App Screenshot](docs/app-screenshot.png)
+![App Screenshot](docs/app-overview.png)
 
 ---
 
@@ -22,7 +22,7 @@ A production-ready deployment of a Flask + MySQL phonebook application on Amazon
 
 | Grafana | Prometheus |
 |---|---|
-| ![Grafana](docs/grafana-screenshot.png) | ![Prometheus](docs/prometheus-screenshot.png) |
+| ![Grafana](docs/grafana-dashboard.png) | ![Prometheus](docs/prometheus-dashboard.png) |
 
 ---
 
@@ -112,9 +112,9 @@ eks-flask-phonebook/
 │   └── prometheus-ingress.yaml
 ├── docs/
 │   ├── phonebook_infrastructure.png
-│   ├── app-screenshot.png
-│   ├── grafana-screenshot.png
-│   └── prometheus-screenshot.png
+│   ├── app-overview.png
+│   ├── grafana-dashboard.png
+│   └── prometheus-dashboard.png
 └── README.md
 ```
 
@@ -133,6 +133,8 @@ eks-flask-phonebook/
 | ECR | First 500MB free, then $0.10/GB/month |
 
 > ⚠️ **Always delete resources after you're done** to avoid unexpected charges.
+
+> 📌 **Disclaimer:** Pricing information is based on publicly available AWS documentation and may change at any time. Always verify current rates on the official AWS pricing pages before provisioning resources: [EKS](https://aws.amazon.com/eks/pricing/) · [EC2](https://aws.amazon.com/ec2/pricing/) · [ALB](https://aws.amazon.com/elasticloadbalancing/pricing/) · [Route53](https://aws.amazon.com/route53/pricing/) · [ECR](https://aws.amazon.com/ecr/pricing/)
 
 ---
 
@@ -229,15 +231,15 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
 
 ### 4. Push Image to ECR
 
-Flask uygulaması Prometheus metriklerini `/metrics` endpoint'i üzerinden sunar.
-`requirements.txt` içinde `prometheus_flask_exporter` bulunmalı, `phonebook-app.py` içinde ise:
+The Flask application exposes Prometheus metrics via the `/metrics` endpoint.
+`requirements.txt` must include `prometheus_flask_exporter`, and `phonebook-app.py` should contain:
 
 ```python
 from prometheus_flask_exporter import PrometheusMetrics
-metrics = PrometheusMetrics(app)  # app = Flask(__name__) dan hemen sonra
+metrics = PrometheusMetrics(app)  # right after app = Flask(__name__)
 ```
 
-Image build ve push:
+Build and push the image:
 
 ```bash
 # Replace <YOUR_AWS_ACCOUNT_ID> with your actual account ID
