@@ -1,7 +1,7 @@
 CREATE DATABASE IF NOT EXISTS phonebook_db;
 USE phonebook_db;
 
-CREATE USER 'admin'@'%' IDENTIFIED WITH caching_sha2_password BY 'admin123';
+CREATE USER 'admin'@'%' IDENTIFIED WITH caching_sha2_password BY 'CHANGE_ME_ON_DEPLOY';
 GRANT ALL PRIVILEGES ON phonebook_db.* TO 'admin'@'%';
 FLUSH PRIVILEGES;
 
